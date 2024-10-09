@@ -48,16 +48,16 @@ x-airflow-common:
       condition: service_healthy
 
 services:
-  docker-proxy:
-      image: alpine/socat
-      command: -t 900 TCP-LISTEN:2375,fork,reuseaddr UNIX-CONNECT:/var/run/docker.sock
-      ports: 
-        - "2375"
-      user: root
-      volumes: 
-        - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
-      networks:
-        - stack_internal
+  # docker-proxy:
+  #     image: alpine/socat
+  #     command: -t 900 TCP-LISTEN:2375,fork,reuseaddr UNIX-CONNECT:/var/run/docker.sock
+  #     ports: 
+  #       - "2375"
+  #     user: root
+  #     volumes: 
+  #       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+  #     networks:
+  #       - stack_internal
   # hook in case we need to add init behavior
   # every root service (no depends_on) should depend on init
   init:
@@ -637,6 +637,27 @@ services:
     restart: always
     networks:
       - stack_internal
+
+  ###########################################################
+  ## DATA WAREHOUSE
+  ##########################################################
+
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    restart: always
+    hostname: clickhouse
+    container_name: clickhouse
+    ports:
+      - 8123:8123
+      - 29000:9000
+    networks:
+      - stack_internal
+    volumes:
+      - ./ch_config/:/etc/clickhouse-server
+      - ./ch_config/config.d/:/etc/clickhouse-server/config.d
+      - ./ch_config/users.d/:/etc/clickhouse-server/users.d
+      - ./ch_logs/:/var/log/clickhouse-server
+      - ./ch_data/:/var/lib/clickhouse
 
   ###########################################################
   ## OPEN METADATA
