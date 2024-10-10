@@ -48,16 +48,16 @@ x-airflow-common:
       condition: service_healthy
 
 services:
-  # docker-proxy:
-  #     image: alpine/socat
-  #     command: -t 900 TCP-LISTEN:2375,fork,reuseaddr UNIX-CONNECT:/var/run/docker.sock
-  #     ports: 
-  #       - "2375"
-  #     user: root
-  #     volumes: 
-  #       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
-  #     networks:
-  #       - stack_internal
+  docker-proxy:
+      image: alpine/socat
+      command: -t 900 TCP-LISTEN:2375,fork,reuseaddr UNIX-CONNECT:/var/run/docker.sock
+      ports: 
+        - "2375"
+      user: root
+      volumes: 
+        - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+      networks:
+        - stack_internal
   # hook in case we need to add init behavior
   # every root service (no depends_on) should depend on init
   init:
@@ -98,6 +98,7 @@ services:
     image: airbyte/db:${VERSION}
     logging: *default-logging
     container_name: airbyte-db
+    hostname: airbyte-db
     restart: unless-stopped
     environment:
       - CONFIG_DATABASE_PASSWORD=${CONFIG_DATABASE_PASSWORD:-}
@@ -122,6 +123,7 @@ services:
     image: airbyte/worker:${VERSION}
     logging: *default-logging
     container_name: airbyte-worker
+    hostname: airbyte-worker
     restart: unless-stopped
     environment:
       - ACTIVITY_INITIAL_DELAY_BETWEEN_ATTEMPTS_SECONDS=${ACTIVITY_INITIAL_DELAY_BETWEEN_ATTEMPTS_SECONDS}
@@ -210,6 +212,7 @@ services:
     image: airbyte/server:${VERSION}
     logging: *default-logging
     container_name: airbyte-server
+    hostname: airbyte-server
     restart: unless-stopped
     environment:
       - AIRBYTE_API_HOST=${AIRBYTE_API_HOST}
@@ -284,6 +287,7 @@ services:
     image: airbyte/webapp:${VERSION}
     logging: *default-logging
     container_name: airbyte-webapp
+    hostname: airbyte-webapp
     restart: unless-stopped
     environment:
       - AIRBYTE_SERVER_HOST=${AIRBYTE_SERVER_HOST}
@@ -298,6 +302,7 @@ services:
     image: airbyte/temporal:${VERSION}
     logging: *default-logging
     container_name: airbyte-temporal
+    hostname: airbyte-temporal
     restart: unless-stopped
     environment:
       - DB=postgresql
@@ -321,6 +326,7 @@ services:
     image: airbyte/cron:${VERSION}
     logging: *default-logging
     container_name: airbyte-cron
+    hostname: airbyte-cron
     restart: unless-stopped
     environment:
       - AIRBYTE_INSTALLATION_ID=${AIRBYTE_INSTALLATION_ID:-}
@@ -364,6 +370,7 @@ services:
     image: airbyte/connector-builder-server:${VERSION}
     logging: *default-logging
     container_name: airbyte-connector-builder-server
+    hostname: airbyte-connector-builder-server
     restart: unless-stopped
     ports:
       - 8080
@@ -393,6 +400,7 @@ services:
   airbyte-proxy:
     image: airbyte/proxy:${VERSION}
     container_name: airbyte-proxy
+    hostname: airbyte-proxy
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -416,12 +424,14 @@ services:
       - webapp
       - server
 
-  ###########################################################
-  ## AIRFLOW
-  ##########################################################
+  # ###########################################################
+  # ## AIRFLOW
+  # ##########################################################
 
   postgres:
     image: postgres:13
+    container_name: airflow-postgres
+    hostname: airbyte-postgres
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
@@ -440,6 +450,8 @@ services:
 
   redis:
     image: redis:latest
+    container_name: airflow-redis
+    hostname: airflow-redis
     expose:
       - 6379
     healthcheck:
@@ -454,6 +466,8 @@ services:
   airflow-webserver:
     <<: *airflow-common
     command: webserver
+    container_name: airflow-webserver
+    hostname: airflow-webserver
     ports:
       - 8085:8080
     healthcheck:
@@ -472,6 +486,8 @@ services:
   airflow-scheduler:
     <<: *airflow-common
     command: scheduler
+    container_name: airflow-scheduler
+    hostname: airflow-scheduler
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
       interval: 10s
@@ -488,6 +504,8 @@ services:
   airflow-worker:
     <<: *airflow-common
     command: celery worker
+    container_name: airflow-worker
+    hostname: airflow-worker
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -511,6 +529,8 @@ services:
   airflow-triggerer:
     <<: *airflow-common
     command: triggerer
+    container_name: airflow-triggerer
+    hostname: airflow-triggerer
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
       interval: 10s
@@ -616,6 +636,8 @@ services:
       - bash
       - -c
       - airflow
+    container_name: airflow-cli
+    hostname: airflow-cli
     networks:
       - stack_internal
 
@@ -625,6 +647,8 @@ services:
 
   minio:
     image: minio/minio:latest
+    container_name: minio
+    hostname: minio
     ports:
       - "9000:9000"
       - "9090:9090"
@@ -638,9 +662,27 @@ services:
     networks:
       - stack_internal
 
-  ###########################################################
-  ## DATA WAREHOUSE
-  ##########################################################
+  minio_buckets:
+    image: minio/mc
+    depends_on:
+        - minio
+    networks:
+      - stack_internal
+    entrypoint: >
+        /bin/sh -c "
+        /usr/bin/mc config host add s3_minio http://host.docker.internal:9000 minio minio1234;
+        /usr/bin/mc rm -r --force s3_minio/originations;
+        /usr/bin/mc mb s3_minio/originations;
+        /usr/bin/mc rm -r --force s3_minio/payments;
+        /usr/bin/mc mb s3_minio/payments;
+        /usr/bin/mc rm -r --force s3_minio/dbt;
+        /usr/bin/mc mb s3_minio/dbt;
+        exit 0;
+        "
+
+  # ###########################################################
+  # ## DATA WAREHOUSE
+  # ##########################################################
 
   clickhouse:
     image: clickhouse/clickhouse-server
@@ -659,22 +701,24 @@ services:
       - ./ch_logs/:/var/log/clickhouse-server
       - ./ch_data/:/var/lib/clickhouse
 
-  ###########################################################
-  ## OPEN METADATA
-  ##########################################################
+  # ###########################################################
+  # ## OPEN METADATA
+  # ##########################################################
 
-  mysql:
-    container_name: openmetadata_mysql
-    image: docker.getcollate.io/openmetadata/db:1.0.0
+  openmetadata-mysql:
+    container_name: openmetadata-mysql
+    hostname: openmetadata-mysql
+    image: docker.getcollate.io/openmetadata/db:1.5.6
+    command: "--sort_buffer_size=10M"
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: openmeta
+      MYSQL_ROOT_PASSWORD: password
     expose:
       - 3306
     ports:
       - "3306:3306"
     volumes:
-     - mysql-openmetadata:/var/lib/mysql
+     - ./db_data:/var/lib/mysql
     healthcheck:
       test: mysql --user=root --password=$$MYSQL_ROOT_PASSWORD --silent --execute "use openmetadata_db"
       interval: 15s
@@ -685,6 +729,7 @@ services:
 
   elasticsearch:
     container_name: openmetadata_elasticsearch
+    hostname: openmetadata_elasticsearch
     image: docker.elastic.co/elasticsearch/elasticsearch:7.10.2
     environment:
       - discovery.type=single-node
@@ -699,6 +744,7 @@ services:
 
   openmetadata-server:
     container_name: openmetadata_server
+    hostname: openmetadata_server
     restart: always
     image: docker.getcollate.io/openmetadata/server:1.0.0
     environment:
@@ -735,7 +781,7 @@ services:
       DB_USE_SSL: ${DB_USE_SSL:-false}
       DB_USER: ${DB_USER:-openmetadata_user}
       DB_USER_PASSWORD: ${DB_USER_PASSWORD:-openmetadata_password}
-      DB_HOST: ${DB_HOST:-mysql}
+      DB_HOST: ${DB_HOST:-openmetadata-mysql}
       DB_PORT: ${DB_PORT:-3306}
       OM_DATABASE: ${OM_DATABASE:-openmetadata_db}
       # ElasticSearch Configurations
@@ -765,18 +811,19 @@ services:
     depends_on:
       elasticsearch:
         condition: service_started
-      mysql:
+      openmetadata-mysql:
         condition: service_healthy
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8586/healthcheck" ]
 
   ingestion:
     container_name: openmetadata_ingestion
+    hostname: openmetadata_ingestion
     image: docker.getcollate.io/openmetadata/ingestion:1.0.0
     depends_on:
       elasticsearch:
         condition: service_started
-      mysql:
+      openmetadata-mysql:
         condition: service_healthy
       openmetadata-server:
         condition: service_started
@@ -804,6 +851,45 @@ services:
     networks:
       - stack_internal
 
+  # ###########################################################
+  # ## METABASE
+  # ##########################################################
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase
+    hostname: metabase
+    volumes:
+      - /dev/urandom:/dev/random:ro
+    ports:
+      - 3000:3000
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: metabase
+      MB_DB_PORT: 5432
+      MB_DB_USER: metabase
+      MB_DB_PASS: metabase
+      MB_DB_HOST: metabase-postgres
+    networks:
+      - stack_internal
+    healthcheck:
+      test: curl --fail -I http://localhost:3000/api/health || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 5
+  metabase-postgres:
+    image: postgres:latest
+    container_name: metabase-postgres
+    hostname: metabase-postgres
+    ports:
+      - 15432:5432
+    environment:
+      POSTGRES_USER: metabase
+      POSTGRES_DB: metabase
+      POSTGRES_PASSWORD: metabase
+    networks:
+      - stack_internal
+
 volumes:
   workspace:
     name: ${WORKSPACE_DOCKER_MOUNT}
@@ -818,7 +904,6 @@ volumes:
     name: ${DB_DOCKER_MOUNT}
   postgres-db-volume:
   minio_storage:
-  mysql-openmetadata:
   ingestion-volume-dag-airflow:
   ingestion-volume-dags:
   ingestion-volume-tmp:
