@@ -38,7 +38,7 @@ x-airflow-common:
     
     # Manual mappings performed
     - ${AIRFLOW_PROJ_DIR:-.}/dbt:/opt/airflow/dbt
-    # - ${AIRFLOW_PROJ_DIR:-.}/data_csv:/opt/airflow/data_csv
+    - ${AIRFLOW_PROJ_DIR:-.}/data_src:/opt/airflow/data_src
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on

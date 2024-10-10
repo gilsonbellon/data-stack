@@ -41,7 +41,6 @@ Minio acces and secret keys along with url_endpoint are used to log in and for c
 
 * **username:** `default`
 * **password:** topsecret
-
 * **host:** `localhost`
 * **port:** 8123
 
@@ -66,12 +65,9 @@ Enter a valid email when trying to log in.
 
 * Enter some email
 * **usermame**: metabase1234
-
 * **passwor**d: metabase1234
 
 ---
-
-
 
 ## Setup Instructions
 
@@ -95,7 +91,7 @@ Enter a valid email when trying to log in.
    *If you test this connection it will fail, just ignore it.*
    - **Connection Type:** `Amazon Web Services`
    - **Connection Id:** `aws_default`
-   - **Extra:** `{"aws_access_key_id": "minio", "aws_secret_access_key": "minio1234", "endpoint_url": "http://host.docker.internal:9000", "region_name": "us-east-1"}`
+   - **Extra:** `{"aws_access_key_id": "minio", "aws_secret_access_key": "minio1234", "endpoint_url": "http://host.docker.internal:9000"}`
 4. Create the Postgres connection
    - **Connection Type:** `Postgres`
    - **Connection Id:** `postgres_default`
@@ -123,8 +119,8 @@ Enter a valid email when trying to log in.
    - **Output_stream_name:** `daily_customer_information_cdc`
    - **Pattern_of_files_to_replicate:** `customer/*.csv`
    - **Bucket:** `raw`
-   - **Aws_access_key_id:** `minio_admin`
-   - **Aws_secret_access_key:** `minio_password`
+   - **Aws_access_key_id:** `minio`
+   - **Aws_secret_access_key:** `minio1234`
    - **Path_prefix:** `customer/`
    - **Endpoint:** `http://host.docker.internal:9000`
    - ***Scroll until the end and select `set up source`***
