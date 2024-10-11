@@ -83,6 +83,95 @@ Enter a valid email when trying to log in.
 
 ---
 
+## Clickhouse Configurations
+
+Open Clichouse on DBeaver or any similar software, setting as above.
+
+CREATE USER 'airbyte_user'@'%' IDENTIFIED BY 'airbyte1234';
+
+GRANT CREATE ON * TO airbyte_user;
+
+GRANT CREATE ON default.* TO airbyte_user;
+
+GRANT DROP ON * TO airbyte_user;
+
+GRANT TRUNCATE ON * TO airbyte_user;
+
+GRANT INSERT ON * TO airbyte_user;
+
+GRANT SELECT ON * TO airbyte_user;
+
+GRANT CREATE DATABASE ON airbyte_internal.* TO airbyte_user;
+
+GRANT CREATE TABLE ON airbyte_internal.* TO airbyte_user;
+
+GRANT DROP ON airbyte_internal.* TO airbyte_user;
+
+GRANT TRUNCATE ON airbyte_internal.* TO airbyte_user;
+
+GRANT INSERT ON airbyte_internal.* TO airbyte_user;
+
+GRANT SELECT ON airbyte_internal.* TO airbyte_user;
+
+
+### After data syncronization from Airbyte:
+
+use dwh;
+
+CREATE TABLE IF NOT EXISTS payment_data
+(
+    paymentId String,
+    installmentId String,
+    paymentDate DateTime,
+    paymentValue Decimal(10, 2)
+) ENGINE = MergeTree()
+ORDER BY (paymentId, installmentId);
+
+INSERT INTO payment_data
+SELECT
+JSONExtractString(_airbyte_data, 'paymentId') AS paymentId,
+JSONExtractString(_airbyte_data, 'installmentId') AS installmentId,
+toDateTime(JSONExtractString(_airbyte_data, 'paymentDate')) AS paymentDate,
+toDecimal64(JSONExtractString(_airbyte_data, 'paymentValue'), 2) AS paymentValue
+FROM dwh_raw__stream_payments_stream;
+
+
+```
+CREATE TABLE Originations (
+    originationId String,
+    clientId String,
+    registerDate Date
+) ENGINE = MergeTree()
+ORDER BY originationId;
+
+INSERT INTO Originations
+SELECT
+JSONExtractString(_airbyte_data, 'originationId') AS originationId,
+    JSONExtractString(_airbyte_data, 'clientId') AS clientId,
+    toDateTime(JSONExtractString(_airbyte_data, 'registerDate')) AS registerDate
+FROM dwh_raw__stream_originations_stream;
+
+
+
+CREATE TABLE Installments (
+    originationId String,
+    installmentId String,
+    dueDate Date,
+    installmentValue Decimal(10, 2)
+) ENGINE = MergeTree()
+ORDER BY (originationId, installmentId);
+
+INSERT INTO Installments
+SELECT
+JSONExtractString(_airbyte_data, 'originationId') AS originationId,
+   arrayJoin(arrayMap(x -> JSONExtractString(x, 'installmentId'), JSONExtractArrayRaw(_airbyte_data, 'installments'))) AS installmentId,
+   arrayJoin(arrayMap(x -> toDateTime(JSONExtractString(x, 'dueDate')), JSONExtractArrayRaw(_airbyte_data, 'installments'))) AS dueDate,
+   arrayJoin(arrayMap(x -> toDecimal64(JSONExtractString(x, 'installmentValue'), 2), JSONExtractArrayRaw(_airbyte_data, 'installments'))) AS installmentValue
+FROM dwh_raw__stream_originations_stream;
+```
+
+
+
 ## Airflow Configurations
 
 1. Open Airflow
