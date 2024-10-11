@@ -92,25 +92,15 @@ CREATE USER 'airbyte_user'@'%' IDENTIFIED BY 'airbyte1234';
 GRANT CREATE ON * TO airbyte_user;
 
 GRANT CREATE ON default.* TO airbyte_user;
-
 GRANT DROP ON * TO airbyte_user;
-
 GRANT TRUNCATE ON * TO airbyte_user;
-
 GRANT INSERT ON * TO airbyte_user;
-
 GRANT SELECT ON * TO airbyte_user;
-
 GRANT CREATE DATABASE ON airbyte_internal.* TO airbyte_user;
-
 GRANT CREATE TABLE ON airbyte_internal.* TO airbyte_user;
-
 GRANT DROP ON airbyte_internal.* TO airbyte_user;
-
 GRANT TRUNCATE ON airbyte_internal.* TO airbyte_user;
-
 GRANT INSERT ON airbyte_internal.* TO airbyte_user;
-
 GRANT SELECT ON airbyte_internal.* TO airbyte_user;
 
 
@@ -204,101 +194,35 @@ FROM dwh_raw__stream_originations_stream;
 1. Open Airbyte, enter an email and select `Get started`
 2. Select sources (*left sidebar*) , in the search bar write `S3` and select it
 3. Create the S3 connection for customer data
-   - **Source_name:** `S3_customer_information_cdc`
-   - **Output_stream_name:** `daily_customer_information_cdc`
-   - **Pattern_of_files_to_replicate:** `customer/*.csv`
-   - **Bucket:** `raw`
+   - **Source_name:** `S3_originations`
+   - **Output_stream_name:** `originations-stream`
+   - **Bucket:** `originations`
    - **Aws_access_key_id:** `minio`
    - **Aws_secret_access_key:** `minio1234`
-   - **Path_prefix:** `customer/`
    - **Endpoint:** `http://host.docker.internal:9000`
    - ***Scroll until the end and select `set up source`***
 4. Create the S3 connection for customer driver data
-   - **Source_name:** `S3_daily_customer_drivers`
-   - **Output_stream_name:** `daily_customer_drivers`
-   - **Pattern_of_files_to_replicate:** `customerDrivers/*.csv`
-   - **Bucket:** `raw`
-   - **Aws_access_key_id:** `minio_admin`
-   - **Aws_secret_access_key:** `minio_password`
-   - **Path_prefix:** `customerDrivers/`
+   - **Source_name:** `S3_payments`
+   - **Output_stream_name:** `payments-stream`
+   - **Bucket:** `payments`
+   - **Aws_access_key_id:** `minio`
+   - **Aws_secret_access_key:** `minio1234`
    - **Endpoint:** `http://host.docker.internal:9000`
    - ***Scroll until the end and select `set up source`***
-5. Create the S3 connection for loan transactions data
-   - **Source_name:** `S3_daily_loan_transactions`
-   - **Output_stream_name:** `daily_loan_transactions`
-   - **Pattern_of_files_to_replicate:** `transactions/*.csv`
-   - **Bucket:** `raw`
-   - **Aws_access_key_id:** `minio_admin`
-   - **Aws_secret_access_key:** `minio_password`
-   - **Path_prefix:** `transactions/`
-   - **Endpoint:** `http://host.docker.internal:9000`
-   - ***Scroll until the end and select `set up source`***
-6. Select Destinations (*left sidebar*), search for Postgres and select it.
+5. Select Destinations (*left sidebar*), search for Clickhouse and select it.
 7. Create the Postgres connection as destination
-   - **Destination_name:** `Postgres_DWH`
+   - **Destination_name:** `Clickhouse_DWH`
    - **Host:** `localhost`
-   - **Port:** `5455`
+   - **Port:** `8432`
    - **Db_name:** `dwh`
-   - **Default_Schema**: `airbyte`
-   - **user:** `dwh`
-   - **password:** `dwh`
+   - **user:** `airbyte_user`
+   - **password:** `airbyte1234`
    - ***Scroll until the end and select `set up destination`***
-8. Select Connections (*left sidebar*)
-   - Select the `S3_customer_information_cdc` source
-   - Select `Use existing destination`
-   - In the destination tab select **Postgres_DWH** and select `Use existing destination`
-   - In the new screen view, change the `Replication frequency` to `Manual`
-   - Sync mode should be `Full refresh overwrite` (*2023-05-01 - Incremental sync mode isn't  working, data gets duplicated when using it, maybe because the Postgres connector is in Alpha*)
-   - Select `set up connection`
-   - Repeat the same process for `S3_daily_customer_drivers` and `S3_daily_loan_transactions` sources.
-9. After setting up the connections, select Connections (*left side bar*) and click on `Sync now` for your 3 connections.
+8. After setting up the connections, select Connections (*left side bar*) and click on `Sync now` for your 3 connections.
 10. Wait until the syncronization finished.
 
 ---
 
-## Openmetadata Configurations
-
-### Database Services - Postgres
-
-1. Open openmetadata, enter your credentials
-   - **username:** `admin`
-   - **password:** `admin`
-2. Select `Services` in the left sidebar.
-3. Select `Add New Service` in the right top corner.
-4. Create the Postgres database service.
-   - Select Database Services.
-   - Select the **Postgres connector** and select `Next`
-   - Enter `postgres_con` as service name and select `Next`
-   - Fill out the fields for the connection:
-     - **Username:** `dwh`
-     - **Password:** `dwh`
-     - **Host_and_Port:** `postgres_dwh`
-     - **Database:** `dwh`
-   - Test your connection and select `save`
-5. Select your connection.
-6. Select the tab called `Ingestions`
-7. Create a metadata ingestion by selecting the `Add ingestion` purple button on the right **Mandatory**
-   - Enable `Use FQN For Filtering`
-   - Enable `Include Views`
-   - Select `Next`
-   - Schedule interval, select `None`, which means Manual.
-   - Finally select `Add & Deploy` `and then View Service`
-   - Run the metadata ingestion.
-8. Create a DBT Ingestion **Mandatory  (For our example)**
-   - **dbt_Configuration_Source:** `S3_Config_Source`
-   - **AWS_Access_Key_ID**: `minio_admin`
-   - **AWS_Secret_Access_Key**: `minio_password`
-   - **AWS_Region**: `us-east-1`
-   - **Endpoint_URL**: `http://host.docker.internal:9000`
-   - **dbt_Bucket_Name**: `dbt`
-   - **dbt_Object_Prefix**: `dwh`
-   - Select `Next`, choose a `Manual` schedule interval.
-   - Run the DBT ingestion
-9. Create Lineage Ingestion **Optional**
-10. Create a Profiler Ingestion **Optional**
-    - Recommended to filter schema and target only: `bronze,silver,gold`
-    - Recommended to play with the value of `Profile Sample Type`
-11. Create a Usage Ingestion **Optional**
 
 ### Pipeline Services - Airflow
 
@@ -329,28 +253,8 @@ FROM dwh_raw__stream_originations_stream;
    - **Host_and_Port:** `http://host.docker.internal:8000`
    - **Metadata_Database_Connection:** `PostgresConnection`
    - **Username:** `airbyte`
-   - **Password:** `password`
+   - **Password:** `airbyte`
 7. Test your connection and save.
 8. Navigate to your airflow service connection and create a metadata ingestion.
 9. Run the metadata ingestion.
 
----
-
-## How to run DBT alone
-
-*In case you want to do some dbt actions*
-
-1. Navigate to the root of the `dbt` directory
-2. Install a python virtual environment by running:
-   - Windows: `python -m venv env`
-3. Activate your environment by running:
-   - Windows: `env/scripts/activate`
-4. Run the below command to install dbt:
-   - Windows: `pip install dbt-postgres==1.4.6`
-5. Navigate to the `dwh` project by running:
-   - cd `dwh`
-6. Now you are able to run dbt commands, follow example below:
-
-- `dbt build --profiles-dir "../" --target prod_localhost --vars '{ target_date: 2022-09-12 }' --select gold`
-- `dbt test --profiles-dir "../" --target prod_localhost --vars '{ target_date: 2022-09-12 }' --select gold`
-  **Note: Some of the tasks will be marked as `ERROR` when running a DBT command  because data is already loaded.**
